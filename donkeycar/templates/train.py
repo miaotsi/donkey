@@ -515,7 +515,7 @@ def train(cfg, tub_names, model_name, transfer_model, model_type, continuous, au
         val_steps = num_val // cfg.BATCH_SIZE
     else:
         steps_per_epoch = 100
-        val_steps = 10    
+        val_steps = 10
     
     print('steps_per_epoch', steps_per_epoch)
 
@@ -560,6 +560,8 @@ def go_train(kl, cfg, train_gen, val_gen, gen_records, model_name, steps_per_epo
     if cfg.USE_EARLY_STOP and not continuous:
         callbacks_list.append(early_stop)
     
+    print("val_steps", val_steps)
+
     history = kl.model.fit_generator(
                     train_gen, 
                     steps_per_epoch=steps_per_epoch, 
