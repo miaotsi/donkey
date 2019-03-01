@@ -512,10 +512,11 @@ def train(cfg, tub_names, model_name, transfer_model, model_type, continuous, au
     
     if not continuous:
         steps_per_epoch = num_train // cfg.BATCH_SIZE
+        val_steps = num_val // cfg.BATCH_SIZE
     else:
         steps_per_epoch = 100
+        val_steps = 10    
     
-    val_steps = num_val // cfg.BATCH_SIZE
     print('steps_per_epoch', steps_per_epoch)
 
     go_train(kl, cfg, train_gen, val_gen, gen_records, model_name, steps_per_epoch, val_steps, continuous, verbose, save_best)

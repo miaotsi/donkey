@@ -44,4 +44,14 @@ throttle = PWMThrottle(controller=throttle_controller,
 V.add(steering, inputs=['angle'])
 V.add(throttle, inputs=['throttle'])
 
+V.add(MQTTValueSub(name="donkey/%s/weights" % cfg.DONKEY_UNIQUE_NAME, broker=args["--broker"]), outputs=['model/weights'])
+
+class ModelWeightReloader():
+    def run(self, weights):
+        if weights is None:
+            return
+        print("got some weights to reload")
+
+V.add(ModelWeightReloader(), inputs=['model/weights'])
+
 V.start(rate_hz=cfg.DRIVE_LOOP_HZ)

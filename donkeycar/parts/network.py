@@ -312,6 +312,7 @@ class MQTTValuePub(object):
 
         self.name = name
         self.message = None
+        self.def_value = def_value
         self.client = Client()
         print("connecting to broker", broker)
         self.client.connect(broker)
