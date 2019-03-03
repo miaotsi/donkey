@@ -1,8 +1,8 @@
 """
-Scripts to drive a donkey car remotely
+Scripts to train a donkey and control remotely
 
 Usage:
-    train_service.py --name=<robot_name> --broker="localhost" [--record=<path>]
+    train_service.py --name=<robot_name> --broker="localhost" --port=8887 [--record=<path>]
 
 
 Options:
@@ -11,6 +11,9 @@ Options:
 import os
 import time
 import math
+import zlib
+import pickle
+
 from docopt import docopt
 import donkeycar as dk
 import cv2
@@ -46,17 +49,17 @@ class DonkeyDataUnpacker:
 from PIL import Image
 img = Image.open('donkey.jpg')
 V.add(MQTTValueSub(name="donkey/%s/camera" % args["--name"], broker=args["--broker"], def_value=img_to_binary(img)), outputs=["jpg"])
-V.add(JpgToImgArr(), inputs=["jpg"], outputs=["img_arr"]) 
-V.add(ImgBGR2RGB(), inputs=["img_arr"], outputs=["cam/image_array"])
-web = LocalWebController()
-V.add(web, 
+V.add(JpgToImgArr(), inputs=["jpg"], outputs=["cam/image_array"]) 
+web = LocalWebController(port=args["--port"])
+V.add(web,
           inputs=['cam/image_array'],
           outputs=['user/angle', 'user/throttle', 'user/mode', 'recording'],
           threaded=True)
 
 #V.add(DonkeyDataUnpacker(), inputs=['packed/data'], outputs=['steering', 'throttle', 'mode', 'recording'])
 V.add(DonkeyDataPacker(), inputs=['user/angle', 'user/throttle', 'user/mode', 'recording'], outputs=['packed/data'])
-V.add(MQTTValuePub(name="donkey/%s/controls" % args["--name"], broker=args["--broker"]), inputs=['packed/data'])
+pub = MQTTValuePub(name="donkey/%s/controls" % args["--name"], broker=args["--broker"])
+V.add(pub, inputs=['packed/data'])
 
 record_path = args["--record"]
 if record_path is None:
@@ -92,21 +95,30 @@ weights_file = model_path.replace('.h5', '.weights')
 V.add(FileWatcher(weights_file, verbose=True), outputs=['modelfile/dirty'])
 V.add(DelayedTrigger(100), inputs=['modelfile/dirty'], outputs=['modelfile/reload'])
 
-class FileLoader():
-    def __init__(self, filename):
+class FileSender():
+    def __init__(self, filename, client, name):
         self.filename = filename
+        self.client = client
+        self.name = name
 
     def run(self, do_load):
         if not do_load:
-            return None
+            return
 
-        file = open(self.filename, 'rb')
-        buffer = file.read()
-        file.close()
-        return buffer
+        try:
+            file = open(self.filename, 'rb')
+            buffer = file.read()
+            file.close()
 
-V.add(FileLoader(filename=weights_file), inputs=['modelfile/reload'], outputs=["model/weights"])
-V.add(MQTTValuePub(name="donkey/%s/weights" % args["--name"], broker=args["--broker"]), inputs=['model/weights'])
+            packet = { "name": self.name, "val" : buffer }
+            p = pickle.dumps(packet)
+            z = zlib.compress(p)
+            self.client.publish(self.name, z)
+        except Exception as e:
+            print(e)
+
+loader = FileSender(filename=weights_file, client=pub.client, name="donkey/%s/weights" % args["--name"])
+V.add(loader, inputs=['modelfile/reload'])
 
 V.start(rate_hz=20)
 

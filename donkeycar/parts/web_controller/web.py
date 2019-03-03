@@ -104,13 +104,15 @@ class RemoteWebServer():
     
 class LocalWebController(tornado.web.Application):
 
-    def __init__(self):
+    def __init__(self, port=8887):
         ''' 
         Create and publish variables needed on many of 
         the web handlers.
         '''
 
-        print('Starting Donkey Server...')
+        self.port = int(port)
+
+        print('Starting Donkey Server on port', self.port)
 
         this_dir = os.path.dirname(os.path.realpath(__file__))
         self.static_file_path = os.path.join(this_dir, 'templates', 'static')
@@ -131,10 +133,9 @@ class LocalWebController(tornado.web.Application):
 
         super().__init__(handlers, **settings)
 
-    def update(self, port=8887):
+    def update(self):
         ''' Start the tornado webserver. '''
-        print(port)
-        self.port = int(port)
+        print(self.port)
         self.listen(self.port)
         tornado.ioloop.IOLoop.instance().start()
 

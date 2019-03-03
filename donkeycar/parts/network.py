@@ -312,7 +312,6 @@ class MQTTValuePub(object):
 
         self.name = name
         self.message = None
-        self.def_value = def_value
         self.client = Client()
         print("connecting to broker", broker)
         self.client.connect(broker)
@@ -341,7 +340,7 @@ class MQTTValueSub(object):
         self.name = name
         self.data = None
         self.client = Client(clean_session=True)
-        self.client.on_message = self.on_message
+        self.client.message_callback_add(name, self.on_message)
         print("(clean_session) connecting to broker", broker)
         self.client.connect(broker)
         self.client.loop_start()
@@ -351,6 +350,9 @@ class MQTTValueSub(object):
 
     def on_message(self, client, userdata, message):
         self.data = message.payload
+
+    def reset_message(self):
+        self.data = self.def_value
         
     def run(self):
         if self.data is None:
@@ -361,7 +363,6 @@ class MQTTValueSub(object):
 
         if self.name == obj['name']:
             self.last = obj['val']
-            #print("steering, throttle", obj['val'])
             return obj['val']
             
         return self.def_value
