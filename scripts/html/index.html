@@ -1,0 +1,40 @@
+<html>
+<script>
+
+function load_status (e) {
+  var xhr = new XMLHttpRequest();
+
+  xhr.onreadystatechange = function () { 
+    if (xhr.readyState == 4 && xhr.status == 200) {
+      var elem = document.getElementById('status');
+      if(elem != null)
+      {
+        elem.innerHTML = xhr.responseText;
+      }    
+    }
+  }
+
+  xhr.open("GET", "http://trainmydonkey.com/status.html", true);
+  xhr.setRequestHeader('Content-type', 'text/html');
+  xhr.send();
+}
+
+load_status();
+</script>
+
+<img src="donkey.jpg"></img>
+<h1>train your donkey</h1>
+<h2>do these steps on your pi:</h2>
+<pre>                
+    git clone https://github.com/tawnkramer/donkey
+    pip install -e donkey[pi]
+    donkey createcar --path ~/d2 --template manage_remote
+    cd ~/d2
+    echo "DONKEY_UNIQUE_NAME=MyRobotName" >> myconfig.py
+    echo "MQTT_BROKER=trainmydonkey.com" >> myconfig.py
+    python manage.py
+</pre>
+<hr>
+<h2>Once your robot has started up, refresh the page to find it here:</h2>
+<div id="status"></div>
+</html>

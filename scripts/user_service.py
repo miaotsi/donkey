@@ -15,6 +15,8 @@ import zlib
 import pickle
 from subprocess import Popen
 import shlex
+import socket
+import select
 
 from docopt import docopt
 import donkeycar as dk
@@ -33,23 +35,63 @@ from donkeycar.parts.transform import Lambda, TriggeredCallback, DelayedTrigger
 args = docopt(__doc__)
 print(args)
 
+class UDPKeepAliveListener(object):
+    '''
+    listen for udp keep alive
+    '''
+    def __init__(self, port = 8886):
+        self.port = port
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # UDP
+        self.sock.setblocking(False)
+        self.sock.bind(("0.0.0.0", port))
+        print("listening on port:", port)
+        self.timeout = 0.1
+
+    def run(self):
+        ready_to_read, ready_to_write, in_error = \
+            select.select(
+                [self.sock],
+                [],
+                [],
+                self.timeout)
+
+        for sock in ready_to_read:
+            data, addr = self.sock.recvfrom(1024)
+            return data.decode()
+        
+        return None
+
+
+    def shutdown(self):
+        if self.sock is not None:
+            self.sock.close()
+            self.sock = None
+
+    def reset_message(self):
+        pass
+
+    def __del__(self):
+        self.shutdown()
+
+
 class Trainer():
     def __init__(self, name, port):
         self.name = name
+        self.port = port
         os.system('mkdir data/%s' % name)
         command = 'python train_service.py --broker=localhost --name=%s --record=data/%s --port=%d' % (name, name, port)
-        print('command:', command)
+        #command = 'python dummy_service.py'
+        print('command:', command, name)
         args =  shlex.split(command)
         self.proc = Popen(args)
         self.t = time.time()
 
     def age(self):
         e = time.time() - self.t
-        #print(e)
         return e > 3.0 
 
     def run(self):
-        print("updating trainer", self.name)
+        #print("updating trainer", self.name)
         self.t = time.time()
 
     def stop(self):
@@ -64,7 +106,9 @@ class Trainer():
 
 trainers = {}
 
-alive = MQTTValueSub(name="donkey/alive", broker=args["--broker"])
+alive = UDPKeepAliveListener()
+
+status_file = "/opt/www/html/status.html"
 
 print("user service listening for donkey/alive messages...")
 
@@ -83,6 +127,15 @@ while True:
             del trainers[key]
             break
 
+    '''
+    write outstatus file
+    '''
+    outfile = open(status_file, "wt")
+    for key, trainer in trainers.items():
+        outfile.write('<a href="http://trainmydonkey.com:%s/drive">Robot: %s</a><hr>\n' % (trainer.port, key))
+    outfile.close()
+
+
     if alive_donkey is None:
         continue
     
@@ -99,10 +152,4 @@ while True:
     '''
     trainers[alive_donkey].run()
 
-    '''
-    clear last message
-    '''
-    alive.reset_message()
-
-    time.sleep(1)
-
+    
