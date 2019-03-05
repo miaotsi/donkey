@@ -49,7 +49,7 @@ class OLED_SD1306():
         self.disp.display()
 
     def shutdown(self):
-        
+        self.clear()
 
 
 class MonochromeImage():
