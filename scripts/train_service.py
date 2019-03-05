@@ -35,31 +35,54 @@ V = dk.vehicle.Vehicle()
 args = docopt(__doc__)
 print(args)
 
+from PIL import Image
+img = Image.open('donkey.jpg')
+bin_jpg = img_to_binary(img)
+
+V.add(MQTTValueSub(name="donkey/%s/telem" % args["--name"], broker=args["--broker"], outputs=["telem"])
+
+class TelemetryUnpacker:
+    def run(self, data):
+        if not data:
+            return 0., 0., 'user', False, bin_jpg
+        return data['steering'], data['throttle'], data['mode'], data['recording'], data['img']
+
+V.add(TelemetryUnpacker(), inputs=['telem'], 
+    outputs=['js/steering', 'js/throttle', 'js/mode', 'js/recording', "jpg"])
+
+V.add(JpgToImgArr(), inputs=["jpg"], outputs=["cam/image_array"])
+web = LocalWebController(port=args["--port"])
+V.add(web,
+          inputs=['cam/image_array'],
+          outputs=['web/steering', 'web/throttle', 'web/mode', 'web/recording'],
+          threaded=True)
+
+
 class DonkeyDataPacker:
     def run(self, steering, throttle, mode, recording):
         data = { 'steering' : steering, 'throttle': throttle, 'mode':mode, 'recording':recording }
         return data
 
-class DonkeyDataUnpacker:
-    def run(self, data):
-        if not data:
-            return 0., 0., 'user', False
-        return data['steering'], data['throttle'], data['mode'], data['recording']
-
-from PIL import Image
-img = Image.open('donkey.jpg')
-V.add(MQTTValueSub(name="donkey/%s/camera" % args["--name"], broker=args["--broker"], def_value=img_to_binary(img)), outputs=["jpg"])
-V.add(JpgToImgArr(), inputs=["jpg"], outputs=["cam/image_array"]) 
-web = LocalWebController(port=args["--port"])
-V.add(web,
-          inputs=['cam/image_array'],
-          outputs=['user/angle', 'user/throttle', 'user/mode', 'recording'],
-          threaded=True)
-
-#V.add(DonkeyDataUnpacker(), inputs=['packed/data'], outputs=['steering', 'throttle', 'mode', 'recording'])
-V.add(DonkeyDataPacker(), inputs=['user/angle', 'user/throttle', 'user/mode', 'recording'], outputs=['packed/data'])
-pub = MQTTValuePub(name="donkey/%s/controls" % args["--name"], broker=args["--broker"])
+V.add(DonkeyDataPacker(), inputs=['web/steering', 'web/throttle', 'web/mode', 'web/recording'], outputs=['packed/data'])
+pub = MQTTValuePub(name="donkey/%s/web_controls" % args["--name"], broker=args["--broker"])
 V.add(pub, inputs=['packed/data'])
+
+class RecordingChoice():
+    def run(self, js_recording, web_recording):
+        return js_recording or web_recording
+
+V.add(RecordingChoice(), inputs=['js/recording', 'web/recording'], outputs=['recording']) 
+
+class ControlChoice():
+    def run(self, js_steer, js_throttle, web_steer, web_throttle):
+        if js_throttle != 0.0 or js_steer != 0.0:
+            return js_steer, js_throttle
+        if web_throttle != 0.0 or web_steer != 0.0:
+            return web_steer, web_throttle
+        return 0.0, 0.0
+
+V.add(ControlChoice(), inputs=['js/steering', 'js/throttle', 'web/steering', 'web/throttle'],
+    outputs=['user/angle', 'user/throttle'])
 
 record_path = args["--record"]
 if record_path is None:
@@ -67,7 +90,7 @@ if record_path is None:
 
 inputs=['cam/image_array',
             'user/angle', 'user/throttle', 
-            'user/mode']
+            'web/mode']
 
 types=['image_array',
         'float', 'float',
@@ -86,7 +109,7 @@ class RunTrainerTest():
 '''
 model trainer, reloader, publisher
 '''
-model_path = 'mymodel.h5'
+model_path = 'data/%s/mymodel.h5' % args["--name"]
 data_path = tub.path
 V.add(RunTrainerTest(), inputs=['tub/num_records'], outputs=['do_train'])
 trainer = Trainer(cfg=cfg, dirs=data_path, model=model_path, transfer=None, model_type='categorical', continuous=True, aug=False)

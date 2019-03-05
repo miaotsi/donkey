@@ -225,7 +225,7 @@ class Pipeline():
 class CvCam(object):
     def __init__(self, image_w=160, image_h=120, image_d=3, iCam=0):
 
-        self.frame = None
+        self.frame = np.zeros((image_h, image_w, image_d), dtype=np.uint8)
         self.cap = cv2.VideoCapture(iCam)
         self.running = True
         self.cap.set(3, image_w)
@@ -268,3 +268,12 @@ class CvImageView(object):
 
     def shutdown(self):
         cv2.destroyAllWindows()
+
+if __name__ == "__main__":
+    print('staring OpenCV camera')
+    cam = CvCam()
+    print('staring OpenCV view')
+    view = CvImageView()    
+    while True:
+        img = cam.run()
+        view.run(view)

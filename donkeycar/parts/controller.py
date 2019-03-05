@@ -659,6 +659,9 @@ class JoystickController(object):
         self.estop_state = self.ES_START
         self.throttle = 0.0
 
+    def is_avail(self):
+        return self.js is not None
+
     def update(self):
         '''
         poll a joystick for input events
