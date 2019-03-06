@@ -33,10 +33,12 @@ var driveHandler = new function() {
     var vehicle_id = ""
     var driveURL = ""
     var vehicleURL = ""
+    var trainURL = ""
 
     this.load = function() {
       driveURL = '/drive'
       vehicleURL = '/drive'
+      trainURL = '/train'
 
       setBindings()
 
@@ -63,6 +65,8 @@ var driveHandler = new function() {
         console.log("Device Orientation not supported by browser, setting control mode to joystick.");
         state.controlMode = 'joystick';
       }
+
+      setInterval(updateTrainStatus, 2000);
     };
 
 
@@ -269,6 +273,74 @@ var driveHandler = new function() {
         console.log(data)
         $.post(driveURL, data)
         updateUI()
+    };
+
+    var updateTrainStatus = function() {
+      var xhr = new XMLHttpRequest();
+
+      xhr.onreadystatechange = function () { 
+        if (xhr.readyState == 4 && xhr.status == 200) {
+          var elem = document.getElementById('train_status');
+          if(elem != null)
+          {
+            var status_json =JSON.parse(xhr.responseText);
+
+            var num_records = document.getElementById("num_records");
+
+            if(num_records != null)
+            {
+                num_records.innerText = "records " + status_json.num_records;
+            }
+
+
+            //uses https://www.chartjs.org/docs/latest/
+
+            var ctx = document.getElementById("myChart").getContext('2d');
+            var myChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ["Red", "Blue", "Yellow", "Green", "Purple", "Orange"],
+                    datasets: [{
+                        label: '# of Votes',
+                        data: [12, 19, 3, 5, 2, 3],
+                        backgroundColor: [
+                            'rgba(255, 99, 132, 0.2)',
+                            'rgba(54, 162, 235, 0.2)',
+                            'rgba(255, 206, 86, 0.2)',
+                            'rgba(75, 192, 192, 0.2)',
+                            'rgba(153, 102, 255, 0.2)',
+                            'rgba(255, 159, 64, 0.2)'
+                        ],
+                        borderColor: [
+                            'rgba(255,99,132,1)',
+                            'rgba(54, 162, 235, 1)',
+                            'rgba(255, 206, 86, 1)',
+                            'rgba(75, 192, 192, 1)',
+                            'rgba(153, 102, 255, 1)',
+                            'rgba(255, 159, 64, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        yAxes: [{
+                            ticks: {
+                                beginAtZero:true
+                            }
+                        }]
+                    }
+                }
+            });
+
+          }
+        }
+      }
+    
+      xhr.open("GET", "/train", true);
+      xhr.setRequestHeader('Content-type', 'text/html');
+      xhr.send();
+    
     };
 
     var applyDeadzone = function(number, threshold){

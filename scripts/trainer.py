@@ -19,14 +19,23 @@ class Trainer():
             print(name, ":", value)
         print("------------------")
         self.do_update = False
+        self.status = {}
 
     def update(self):
         while True:
             if self.do_update:
+                print("set status callback")
+                train.set_status_cb(self.on_status)
                 train.multi_train(*self.args)
+    
+    def on_status(self, status):
+        print("got status", status)
+        self.status = status
 
-    def run_threaded(self):
+    def run_threaded(self, num_records):
         self.do_update = True
+        self.status['num_records'] = num_records
+        return self.status
 
 if __name__ == "__main__":
     from docopt import docopt

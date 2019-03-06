@@ -2,7 +2,7 @@
 Scripts to train a donkey and control remotely
 
 Usage:
-    train_service.py --name=<robot_name> --broker="localhost" --port=8887 [--record=<path>]
+    train_service.py --name=<robot_name> --broker="localhost" --port=8887 --record=<path>
 
 
 Options:
@@ -39,9 +39,9 @@ from PIL import Image
 img = Image.open('donkey.jpg')
 bin_jpg = img_to_binary(img)
 
-V.add(MQTTValueSub(name="donkey/%s/telem" % args["--name"], broker=args["--broker"], outputs=["telem"])
+V.add(MQTTValueSub(name="donkey/%s/telem" % args["--name"], broker=args["--broker"]), outputs=["telem"])
 
-class TelemetryUnpacker:
+class TelemetryUnpacker():
     def run(self, data):
         if not data:
             return 0., 0., 'user', False, bin_jpg
@@ -53,7 +53,7 @@ V.add(TelemetryUnpacker(), inputs=['telem'],
 V.add(JpgToImgArr(), inputs=["jpg"], outputs=["cam/image_array"])
 web = LocalWebController(port=args["--port"])
 V.add(web,
-          inputs=['cam/image_array'],
+          inputs=['cam/image_array', 'train/status'],
           outputs=['web/steering', 'web/throttle', 'web/mode', 'web/recording'],
           threaded=True)
 
@@ -88,6 +88,8 @@ record_path = args["--record"]
 if record_path is None:
     record_path = "data"
 
+os.system('mkdir %s' % record_path)
+
 inputs=['cam/image_array',
             'user/angle', 'user/throttle', 
             'web/mode']
@@ -104,7 +106,7 @@ class RunTrainerTest():
     def run(self, num_records):
         if num_records is None:
             return False
-        return num_records > 200
+        return num_records > 1
 
 '''
 model trainer, reloader, publisher
@@ -113,8 +115,9 @@ model_path = 'data/%s/mymodel.h5' % args["--name"]
 data_path = tub.path
 V.add(RunTrainerTest(), inputs=['tub/num_records'], outputs=['do_train'])
 trainer = Trainer(cfg=cfg, dirs=data_path, model=model_path, transfer=None, model_type='categorical', continuous=True, aug=False)
-V.add(trainer, threaded=True, run_condition='do_train')
+V.add(trainer, inputs=['tub/num_records'], outputs=['train/status'], threaded=True, run_condition='do_train')
 weights_file = model_path.replace('.h5', '.weights')
+os.system('touch %s' % weights_file)
 V.add(FileWatcher(weights_file, verbose=True), outputs=['modelfile/dirty'])
 V.add(DelayedTrigger(100), inputs=['modelfile/dirty'], outputs=['modelfile/reload'])
 
