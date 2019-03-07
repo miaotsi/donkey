@@ -121,11 +121,13 @@ class LocalWebController(tornado.web.Application):
         self.throttle = 0.0
         self.mode = 'user'
         self.recording = False
+        self.train_status = {'epochs' : []}
 
         handlers = [
             (r"/", tornado.web.RedirectHandler, dict(url="/drive")),
             (r"/drive", DriveAPI),
-            (r"/video",VideoAPI),
+            (r"/video", VideoAPI),
+            (r"/train", TrainAPI),
             (r"/static/(.*)", tornado.web.StaticFileHandler, {"path": self.static_file_path}),
             ]
 
@@ -140,12 +142,14 @@ class LocalWebController(tornado.web.Application):
         tornado.ioloop.IOLoop.instance().start()
 
 
-    def run_threaded(self, img_arr=None):
+    def run_threaded(self, img_arr=None, train_status=None):
         self.img_arr = img_arr
+        self.train_status = train_status
         return self.angle, self.throttle, self.mode, self.recording
         
-    def run(self, img_arr=None):
+    def run(self, img_arr=None, train_status=None):
         self.img_arr = img_arr
+        self.train_status = train_status
         return self.angle, self.throttle, self.mode, self.recording
 
     def shutdown(self):
@@ -170,6 +174,21 @@ class DriveAPI(tornado.web.RequestHandler):
         self.application.mode = data['drive_mode']
         self.application.recording = data['recording']
 
+
+class TrainAPI(tornado.web.RequestHandler):
+
+    def get(self):
+        data = { 'epochs' : [''], 'num_records' : 0,  'graph_data': [ [1,10],
+            [2, 5],
+            [3, 15]
+            ] }
+        if self.application.train_status and 'num_records' in self.application.train_status:
+            data['num_records'] = self.application.train_status["num_records"]
+        if self.application.train_status and 'epochs' in self.application.train_status:
+            data['epochs'] = self.application.train_status["epochs"]
+
+        self.write(json.dumps(data))
+    
 
 class VideoAPI(tornado.web.RequestHandler):
     '''

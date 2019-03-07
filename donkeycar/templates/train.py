@@ -109,6 +109,19 @@ def make_next_key(sample, index_offset):
     index = sample['index'] + index_offset
     return tub_path + str(index)
 
+'''
+callbacks
+'''
+
+g_StatusCallback = None
+g_status = { 'epochs' : []}
+
+
+def set_status_cb(cb_fn):
+    global g_StatusCallback
+    g_StatusCallback = cb_fn
+
+
 
 def collate_records(records, gen_records, opts):
 
@@ -224,12 +237,25 @@ class MyCPCallback(keras.callbacks.ModelCheckpoint):
                     self.send_model_cb(self.cfg, self.model, filepath)
 
         '''
+        set the end of epoch status
+        '''
+        global g_StatusCallback
+        global g_status
+        if g_StatusCallback:
+            logs['best'] = self.best
+            g_status['epochs'].append(logs)
+            g_status['best'] = self.best
+            g_status['graph'] = make_web_status_graph(g_status)
+            g_StatusCallback(g_status)
+
+        '''
         when reset best is set, we want to make sure to run an entire epoch
         before setting our new best on the new total records
         '''        
         if self.reset_best_end_of_epoch:
             self.reset_best_end_of_epoch = False
             self.best = np.Inf
+
         
 
 def on_best_model(cfg, model, model_filename):
@@ -643,6 +669,21 @@ def go_train(kl, cfg, train_gen, val_gen, gen_records, model_name, steps_per_epo
 
         print('pruning stopped at {} with a target of {}'.format(cnn_channels, target_channels))
 
+def make_web_status_graph(history):
+    loss = []
+    val_loss = []
+    for record in history['epochs']:
+        loss.append(record['loss'])
+        val_loss.append(record['val_loss'])
+
+    plt.plot(loss)
+    plt.plot(val_loss)
+    plt.title('model loss : %f' % history['best'])
+    plt.ylabel('loss')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'test'], loc='upper left')
+    plt.savefig('train_graph.png')
+    
 
 class SequencePredictionGenerator(keras.utils.Sequence):
     """

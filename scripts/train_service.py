@@ -2,7 +2,7 @@
 Scripts to train a donkey and control remotely
 
 Usage:
-    train_service.py --name=<robot_name> --broker="localhost" --port=8887 [--record=<path>]
+    train_service.py --name=<robot_name> --broker="localhost" --port=8887 --record=<path>
 
 
 Options:
@@ -53,7 +53,7 @@ V.add(TelemetryUnpacker(), inputs=['telem'],
 V.add(JpgToImgArr(), inputs=["jpg"], outputs=["cam/image_array"])
 web = LocalWebController(port=args["--port"])
 V.add(web,
-          inputs=['cam/image_array', "tub/num_records"],
+          inputs=['cam/image_array', 'train/status'],
           outputs=['web/steering', 'web/throttle', 'web/mode', 'web/recording'],
           threaded=True)
 
@@ -88,6 +88,8 @@ record_path = args["--record"]
 if record_path is None:
     record_path = "data"
 
+os.system('mkdir %s' % record_path)
+
 inputs=['cam/image_array',
             'user/angle', 'user/throttle', 
             'web/mode']
@@ -104,7 +106,7 @@ class RunTrainerTest():
     def run(self, num_records):
         if num_records is None:
             return False
-        return num_records > 200
+        return num_records > 1
 
 '''
 model trainer, reloader, publisher
@@ -113,7 +115,7 @@ model_path = 'data/%s/mymodel.h5' % args["--name"]
 data_path = tub.path
 V.add(RunTrainerTest(), inputs=['tub/num_records'], outputs=['do_train'])
 trainer = Trainer(cfg=cfg, dirs=data_path, model=model_path, transfer=None, model_type='categorical', continuous=True, aug=False)
-V.add(trainer, threaded=True, run_condition='do_train')
+V.add(trainer, inputs=['tub/num_records'], outputs=['train/status'], threaded=True, run_condition='do_train')
 weights_file = model_path.replace('.h5', '.weights')
 json_file = model_path.replace('.h5', '.json')
 os.system('touch %s' % weights_file)
