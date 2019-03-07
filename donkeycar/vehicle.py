@@ -78,6 +78,8 @@ class Vehicle():
         entry['inputs'] = inputs
         entry['outputs'] = outputs
         entry['run_condition'] = run_condition
+        assert(type(inputs) is list)
+        assert(type(outputs) is list)
 
         if threaded:
             t = Thread(target=part.update, args=())

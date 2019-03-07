@@ -104,7 +104,7 @@ class RemoteWebServer():
     
 class LocalWebController(tornado.web.Application):
 
-    def __init__(self, port=8887):
+    def __init__(self, port=8887, aux_info_path=None):
         ''' 
         Create and publish variables needed on many of 
         the web handlers.

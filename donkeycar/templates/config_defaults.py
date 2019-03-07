@@ -17,6 +17,7 @@ import os
 
 #donkey name. This should be unique across the shared mqtt broker
 DONKEY_UNIQUE_NAME = 'my_robot1234'
+MQTT_BROKER = "trainmydonkey.com"
 
 #pi information
 PI_USERNAME = "pi"

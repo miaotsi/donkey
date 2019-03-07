@@ -1,18 +1,14 @@
 import time
 
-import Adafruit_GPIO.SPI as SPI
 import Adafruit_SSD1306
-
 from PIL import Image
 from PIL import ImageDraw
 from PIL import ImageFont
 
-import subprocess
-
 # Raspberry Pi pin configuration:
 RST = None     # on the PiOLED this pin isnt used
 
-class OLED_SD1306():
+class Display_OLED_SD1306():
     '''
     This is a display that can be found on Adafruit's site in a few resolutions.
     https://www.adafruit.com/?q=SD1306

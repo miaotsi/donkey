@@ -88,7 +88,7 @@ class Trainer():
 
     def age(self):
         e = time.time() - self.t
-        return e > 3.0 
+        return e > 10.0 
 
     def run(self):
         #print("updating trainer", self.name)

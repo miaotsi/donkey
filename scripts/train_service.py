@@ -39,9 +39,9 @@ from PIL import Image
 img = Image.open('donkey.jpg')
 bin_jpg = img_to_binary(img)
 
-V.add(MQTTValueSub(name="donkey/%s/telem" % args["--name"], broker=args["--broker"], outputs=["telem"])
+V.add(MQTTValueSub(name="donkey/%s/telem" % args["--name"], broker=args["--broker"]), outputs=["telem"])
 
-class TelemetryUnpacker:
+class TelemetryUnpacker(object):
     def run(self, data):
         if not data:
             return 0., 0., 'user', False, bin_jpg
@@ -53,7 +53,7 @@ V.add(TelemetryUnpacker(), inputs=['telem'],
 V.add(JpgToImgArr(), inputs=["jpg"], outputs=["cam/image_array"])
 web = LocalWebController(port=args["--port"])
 V.add(web,
-          inputs=['cam/image_array'],
+          inputs=['cam/image_array', "tub/num_records"],
           outputs=['web/steering', 'web/throttle', 'web/mode', 'web/recording'],
           threaded=True)
 
@@ -115,8 +115,11 @@ V.add(RunTrainerTest(), inputs=['tub/num_records'], outputs=['do_train'])
 trainer = Trainer(cfg=cfg, dirs=data_path, model=model_path, transfer=None, model_type='categorical', continuous=True, aug=False)
 V.add(trainer, threaded=True, run_condition='do_train')
 weights_file = model_path.replace('.h5', '.weights')
+json_file = model_path.replace('.h5', '.json')
+os.system('touch %s' % weights_file)
+os.system('touch %s' % json_file)
 V.add(FileWatcher(weights_file, verbose=True), outputs=['modelfile/dirty'])
-V.add(DelayedTrigger(100), inputs=['modelfile/dirty'], outputs=['modelfile/reload'])
+V.add(DelayedTrigger(30), inputs=['modelfile/dirty'], outputs=['modelfile/reload'])
 
 class FileSender():
     def __init__(self, filename, client, name):
@@ -139,6 +142,9 @@ class FileSender():
             self.client.publish(self.name, z)
         except Exception as e:
             print(e)
+
+loader_m = FileSender(filename=json_file, client=pub.client, name="donkey/%s/model" % args["--name"])
+V.add(loader_m, inputs=['modelfile/reload'])
 
 loader = FileSender(filename=weights_file, client=pub.client, name="donkey/%s/weights" % args["--name"])
 V.add(loader, inputs=['modelfile/reload'])

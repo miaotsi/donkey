@@ -30,8 +30,8 @@ load_status();
     pip install -e donkey[pi]
     donkey createcar --path ~/d2 --template manage_remote_train
     cd ~/d2
-    echo "DONKEY_UNIQUE_NAME=MyRobotName" >> myconfig.py
-    echo "MQTT_BROKER=trainmydonkey.com" >> myconfig.py
+    echo DONKEY_UNIQUE_NAME="MyRobotName" >> myconfig.py
+    echo MQTT_BROKER="trainmydonkey.com" >> myconfig.py
     python manage.py
 </pre>
 <hr>
