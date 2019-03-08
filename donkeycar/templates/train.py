@@ -389,7 +389,7 @@ def train(cfg, tub_names, model_name, transfer_model, model_type, continuous, au
                     collate_records(records, gen_records, opts)
                     new_num_rec = len(data)
                     if new_num_rec > num_records:
-                        print('picked up', new_num_rec - num_records, 'new records!')
+                        #print('picked up', new_num_rec - num_records, 'new records!')
                         num_records = new_num_rec 
                         save_best.reset_best()
                 if num_records < min_records_to_train:

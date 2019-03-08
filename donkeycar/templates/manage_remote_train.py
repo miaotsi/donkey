@@ -17,6 +17,7 @@ import pickle
 import socket
 import io
 from threading import Lock
+import math
 
 from docopt import docopt
 from keras.engine import saving
@@ -75,10 +76,11 @@ V.add(img_to_jpg, inputs=["camera/arr"], outputs=["camera/jpg"])
 if TEST_ON_PC:
     class MockJoystick:
         def __init__(self):
-            pass
+            self.theta = 0.0
 
         def run(self):
-            return 0.1, 0.3, "user", True
+            self.theta += 0.01
+            return math.sin(self.theta), 0.3, "user", True
 
         def is_avail(self):
             return False
