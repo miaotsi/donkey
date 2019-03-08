@@ -29,7 +29,7 @@ class Trainer():
                 train.multi_train(*self.args)
     
     def on_status(self, status):
-        print("got status", status)
+        #print("got status", status)
         self.status = status
 
     def run_threaded(self, num_records):

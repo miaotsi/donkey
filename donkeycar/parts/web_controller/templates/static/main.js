@@ -289,11 +289,16 @@ var driveHandler = new function() {
           {
             var status_json =JSON.parse(xhr.responseText);
 
-            var num_records = document.getElementById("num_records");
+            var num_records = document.getElementById("numRecords");
 
             if(num_records != null)
             {
-                num_records.innerText = "records " + status_json.num_records;
+                num_records.innerText = "records: " + status_json.num_records;
+
+                if(status_json.best != "0.0")
+                {
+                  num_records.innerText += "\nbest loss: " + status_json.best;
+                }
             }
 
             if(lossChart == null && status_json.val_loss.length > val_loss.length)
@@ -323,15 +328,16 @@ var driveHandler = new function() {
             {
               var iAdd = val_loss.length;
               var iEnd = status_json.val_loss.length;
+              var shift = val_loss.length > 50;
 
               //add the new values to the time series.
               for(i = iAdd; i < iEnd; i++)
               {
                 val = status_json.val_loss[i];
                 var redraw = iAdd == iEnd - 1;
-                myChart.series[0].addPoint(val, redraw, redraw);
+                lossChart.series[0].addPoint(val, redraw, shift);
                 val = status_json.loss[i];
-                myChart.series[0].addPoint(val, redraw, redraw);
+                lossChart.series[1].addPoint(val, redraw, shift);
               }
 
               //keep track of the new latest

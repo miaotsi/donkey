@@ -24,6 +24,7 @@ import json
 from threading import Lock
 import time
 from os.path import basename, join, splitext
+import copy
 
 from docopt import docopt
 import numpy as np
@@ -243,9 +244,8 @@ class MyCPCallback(keras.callbacks.ModelCheckpoint):
         global g_status
         if g_StatusCallback:
             logs['best'] = self.best
-            g_status['epochs'].append(logs)
-            g_status['best'] = self.best
-            g_status['graph'] = make_web_status_graph(g_status)
+            g_status['epochs'].append(copy.deepcopy(logs))
+            g_status['best'] = '%.3f' % self.best
             g_StatusCallback(g_status)
 
         '''
@@ -668,22 +668,7 @@ def go_train(kl, cfg, train_gen, val_gen, gen_records, model_name, steps_per_epo
                 break
 
         print('pruning stopped at {} with a target of {}'.format(cnn_channels, target_channels))
-
-def make_web_status_graph(history):
-    loss = []
-    val_loss = []
-    for record in history['epochs']:
-        loss.append(record['loss'])
-        val_loss.append(record['val_loss'])
-
-    plt.plot(loss)
-    plt.plot(val_loss)
-    plt.title('model loss : %f' % history['best'])
-    plt.ylabel('loss')
-    plt.xlabel('epoch')
-    plt.legend(['train', 'test'], loc='upper left')
-    plt.savefig('train_graph.png')
-    
+  
 
 class SequencePredictionGenerator(keras.utils.Sequence):
     """

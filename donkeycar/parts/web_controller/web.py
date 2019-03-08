@@ -178,14 +178,14 @@ class DriveAPI(tornado.web.RequestHandler):
 class TrainAPI(tornado.web.RequestHandler):
 
     def get(self):
-        data = { 'epochs' : [''], 'num_records' : 0,  'loss': [], 'val_loss' : [] }
+        data = { 'best' : "0.0", 'num_records' : 0,  'loss': [], 'val_loss' : [] }
         if self.application.train_status and 'num_records' in self.application.train_status:
             data['num_records'] = self.application.train_status["num_records"]
         if self.application.train_status and 'epochs' in self.application.train_status:
-            data['epochs'] = self.application.train_status["epochs"]
+            data['best'] = self.application.train_status["best"]
             loss = []
             val_loss = []
-            for epoch in data['epochs']:
+            for epoch in self.application.train_status["epochs"]:
                 loss.append(epoch['loss'])
                 val_loss.append(epoch['val_loss'])
             data['loss'] = loss

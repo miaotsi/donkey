@@ -1,22 +1,25 @@
 '''
 Usage:
-    manage.py --model="mymodel.json" [--type="categorical"] [--name="myrobot"]
+    manage.py --model="mymodel.json" [--type="categorical"] [--name="default"]
 
 
 Options:
     -h --help     Show this screen.
+    --name        optional override of DONKEY_UNIQUE_NAME in config
 
 file: manage_remote.py
 author: Tawn Kramer
 date: 2019-01-24
 desc: Control a remote donkey robot over network
 '''
+import os
 import time
 import zlib
 import pickle
 import socket
 import io
 from threading import Lock
+import math
 
 from docopt import docopt
 from keras.engine import saving
@@ -35,11 +38,12 @@ cfg = dk.load_config()
 
 V = dk.Vehicle()
 args = docopt(__doc__)
-print(args)
 
-TEST_ON_PC = True
+#On the pc we can develop with mock parts for faster iteration.
+TEST_ON_PC = os.name == 'nt'
 
-cfg.DONKEY_UNIQUE_NAME = args['--name']
+if args['--name'] != "default":
+    cfg.DONKEY_UNIQUE_NAME = args['--name']
 
 print("starting up", cfg.DONKEY_UNIQUE_NAME, "for remote management.")
 
@@ -75,10 +79,11 @@ V.add(img_to_jpg, inputs=["camera/arr"], outputs=["camera/jpg"])
 if TEST_ON_PC:
     class MockJoystick:
         def __init__(self):
-            pass
+            self.theta = 0.0
 
         def run(self):
-            return 0.1, 0.3, "user", True
+            self.theta += 0.01
+            return math.sin(self.theta), 0.3, "user", True
 
         def is_avail(self):
             return False
