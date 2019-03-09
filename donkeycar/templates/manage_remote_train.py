@@ -1,11 +1,10 @@
 '''
 Usage:
-    manage.py --model="mymodel.json" [--type="categorical"] [--name="default"]
+    manage.py [--model="mymodel.json"] [--type="categorical"] [--name=override]
 
 
 Options:
     -h --help     Show this screen.
-    --name        optional override of DONKEY_UNIQUE_NAME in config
 
 file: manage_remote.py
 author: Tawn Kramer
@@ -42,7 +41,7 @@ args = docopt(__doc__)
 #On the pc we can develop with mock parts for faster iteration.
 TEST_ON_PC = os.name == 'nt'
 
-if args['--name'] != "default":
+if args['--name'] != None:
     cfg.DONKEY_UNIQUE_NAME = args['--name']
 
 print("starting up", cfg.DONKEY_UNIQUE_NAME, "for remote management.")
@@ -166,11 +165,13 @@ def load_weights(kl, weights_path):
         print(e)
         print('ERR>> problems loading weights', weights_path)
 
-model_path = args["--model"]
+model_path = args["--model"] or "models/default.json"
 kl = dk.utils.get_model_by_type(args["--type"], cfg)
-load_model_json(kl, model_path)
+if os.path.exists(model_path):
+    load_model_json(kl, model_path)
 weights_path = model_path.replace('.json', '.weights')
-load_weights(kl, weights_path)
+if os.path.exists(weights_path):
+    load_weights(kl, weights_path)
 graph = tf.get_default_graph()
 
 def is_ai_running(mode):
@@ -222,11 +223,14 @@ if not TEST_ON_PC:
     V.add(throttle, inputs=['throttle'])
 
 class WeightReloader():
-    def __init__(self, keras_part):
+    def __init__(self, keras_part, vehicle):
         self.kl = keras_part
         self.mutex = Lock()
+        self.vehicle = vehicle
 
     def reload_model(self, client, userdata, message):
+        if self.vehicle.mem['user/mode'] != 'user':
+            return
         self.mutex.acquire()
         try:
             import keras
@@ -236,14 +240,22 @@ class WeightReloader():
                 data = message.payload    
                 p = zlib.decompress(data)
                 obj = pickle.loads(p)
-                json_data = obj['val']        
+                json_data = obj['val'].decode()
+                #save it to disc for loading later
+                with open('models/default.json', 'wt') as file_handle:
+                    file_handle.write(json_data)
                 self.kl.model = keras.models.model_from_json(json_data)
+                self.kl.model.compile(optimizer="sgd", loss="mse")
+                graph = tf.get_default_graph()
         except Exception as e:
             print(e)
         finally:
             self.mutex.release()
     
     def reload_weights(self, client, userdata, message):
+        #if self.vehicle.mem['user/mode'] != 'user':
+        #    return
+
         self.mutex.acquire()
         try:
             print("got some weights to reload")
@@ -252,7 +264,7 @@ class WeightReloader():
             obj = pickle.loads(p)
             hdf5_data = obj['val']
                 
-            by_name = False
+            by_name = True
             skip_mismatch = True
             reshape = False
             '''
@@ -301,7 +313,7 @@ class WeightReloader():
             #yuck, write out the weights to a temp file and load them from disk. gagg...
             global graph
             with graph.as_default():
-                temp_filename = "temp.weights"
+                temp_filename = "models/default.weights"
                 outfile = open(temp_filename, "wb")
                 outfile.write(hdf5_data)
                 outfile.close()
@@ -321,9 +333,10 @@ class WeightReloader():
             self.mutex.release()
     
 
-reloader = WeightReloader(kl)
+reloader = WeightReloader(kl, V)
 
 #test file reloader
+'''
 class TestMessage():
     def __init__(self, name, values):
         packet = { "name": name, "val" : values }
@@ -337,10 +350,11 @@ file.close()
 file = open(model_path, 'rb')
 reloader.reload_model( None, None, TestMessage("model/model", file.read()))
 file.close()
+'''
 
 #These are not parts, but single run callbacks from MQTT
-sub_controls.client.message_callback_add("donkey/%s/model" % cfg.DONKEY_UNIQUE_NAME, reloader.reload_model)
-sub_controls.client.subscribe("donkey/%s/model" % cfg.DONKEY_UNIQUE_NAME, qos=1)
+#sub_controls.client.message_callback_add("donkey/%s/model" % cfg.DONKEY_UNIQUE_NAME, reloader.reload_model)
+#sub_controls.client.subscribe("donkey/%s/model" % cfg.DONKEY_UNIQUE_NAME, qos=1)
 sub_controls.client.message_callback_add("donkey/%s/weights" % cfg.DONKEY_UNIQUE_NAME, reloader.reload_weights)
 sub_controls.client.subscribe("donkey/%s/weights" % cfg.DONKEY_UNIQUE_NAME, qos=1)
 

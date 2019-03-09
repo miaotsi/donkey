@@ -301,7 +301,8 @@ var driveHandler = new function() {
                 }
             }
 
-            if(lossChart == null && status_json.val_loss.length > val_loss.length)
+            if((lossChart == null && status_json.val_loss.length > val_loss.length) ||
+              (lossChart != null && status_json.val_loss.length < val_loss.length))
             {
               val_loss = status_json.val_loss;
               loss = status_json.loss;
