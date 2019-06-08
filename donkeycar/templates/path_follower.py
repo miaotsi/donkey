@@ -34,6 +34,7 @@ from donkeycar.parts.encoder import RotaryEncoder
 
 
 ODOM_PLUS_RS_T265 = False
+USE_KINEMATIC_MODEL = True
 
 class T265Server():
     def __init__(self, path, config, port=5555):
@@ -84,6 +85,38 @@ class OdomRemoteAdapter:
         self.running = False
         time.sleep(1.0)
 
+import math
+
+class CarKinematics(object):
+    #reference http://correll.cs.colorado.edu/?p=1869
+    '''
+    Let the robot coordinate system (x_r, y_r, theta_r) be centered on the car’s rear axis.
+    '''
+
+    def __init__(self, x, y, theta, front_rear_wheel_dist_m):
+        self.x = x
+        self.y = y
+        self.L = front_rear_wheel_dist_m
+        self.theta = theta
+
+    def run(self, dist_m, steering_angle_radians):
+        print('dist', dist_m, "steer", steering_angle_radians)
+        B = dist_m / self.L * math.tan(steering_angle_radians)
+        thresh = 0.001
+        if abs(B) > thresh:
+            R = self.L / math.tan(steering_angle_radians)
+            B = dist_m / R
+            Xc = self.x - R * math.sin(self.theta) 
+            Yc = self.y + R * math.cos(self.theta) 
+            self.x = Xc + R * math.sin(self.theta + B)
+            self.y = Yc - R * math.cos(self.theta + B)
+            self.theta = (self.theta + B) % (2.0 * math.pi)
+        else:
+            self.x = self.x + dist_m * math.cos(self.theta)
+            self.y = self.y + dist_m * math.sin(self.theta)
+            self.theta = (self.theta + B) % (2.0 * math.pi)
+        return self.x, self.y
+        
 
 def drive(cfg):
     '''
@@ -99,9 +132,13 @@ def drive(cfg):
     #Initialize car
     V = dk.vehicle.Vehicle()
 
-    PIN = 7 #36
+    if cfg.HAVE_SOMBRERO:
+        from donkeycar.utils import Sombrero
+        s = Sombrero()
+
+    PIN = 36 # doug 7
     enc = RotaryEncoder(mm_per_tick=22.16, pin=PIN, poll_delay=0.05, debug=False)
-    V.add(enc, outputs=['enc/dist_m', 'enc/vel_m_s'], threaded=True)
+    V.add(enc, outputs=['enc/dist_m', 'enc/vel_m_s', 'enc/delta_dist_m'], threaded=True)
     
     cont_class = PS3JoystickController
 
@@ -119,8 +156,17 @@ def drive(cfg):
           outputs=['user/angle', 'user/throttle', 'user/mode', 'recording'],
           threaded=True)
 
+    class Steer_to_rad:
+        def __init__(self, max_steer_rad):
+            self.max_steer_rad = max_steer_rad
+
+        def run(self, steer):
+            return steer * self.max_steer_rad
+
+   
 
     if cfg.DONKEY_GYM:
+
         from donkeycar.parts.dgym import DonkeyGymEnv 
         gym_env = DonkeyGymEnv(cfg.DONKEY_SIM_PATH, env_name=cfg.DONKEY_GYM_ENV_NAME)
         threaded = True
@@ -135,6 +181,16 @@ def drive(cfg):
                 return pos[0], pos[2]
 
         V.add(PosStream(), inputs=['rs/pos'], outputs=['pos/x', 'pos/y'])
+
+    elif USE_KINEMATIC_MODEL:
+
+        MAX_STEER_DEG = 15.0
+        MAX_STEER_RAD = MAX_STEER_DEG * math.pi / 180.0
+        V.add(Steer_to_rad(MAX_STEER_RAD), inputs=['user/angle'], outputs=['steering/radian'])
+
+        FRONT_REAR_WHEELDIST_M = 0.017 #stadard donkey magnet chassis
+        carKine = CarKinematics(0.0, 0.0, theta=0.0, front_rear_wheel_dist_m=FRONT_REAR_WHEELDIST_M)
+        V.add(carKine, inputs=['enc/delta_dist_m' , 'steering/radian'], outputs=['pos/x', 'pos/y'])
 
     elif ODOM_PLUS_RS_T265:
         port = 5555

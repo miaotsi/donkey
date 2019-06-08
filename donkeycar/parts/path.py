@@ -20,7 +20,7 @@ class Path(object):
         d = dist(x, y, self.x, self.y)
         if self.recording and d > self.min_dist:
             self.path.append((x, y))
-            logging.info("path point (%f, %f)" % ( x, y))
+            #logging.info("path point (%f, %f)" % ( x, y))
             self.x = x
             self.y = y
         return self.path

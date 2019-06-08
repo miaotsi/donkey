@@ -82,6 +82,7 @@ class RotaryEncoder():
         self.counter = 0
         self.on = True
         self.debug = debug
+        self.delta_m = 0.0
     
     def isr(self, channel):
         self.counter += 1
@@ -106,6 +107,7 @@ class RotaryEncoder():
             
             #update the odometer values
             self.meters += distance
+            self.delta_m = distance
             self.meters_per_second = velocity
 
             #console output for debugging
@@ -120,7 +122,7 @@ class RotaryEncoder():
             time.sleep(self.poll_delay)
 
     def run_threaded(self):
-        return self.meters, self.meters_per_second
+        return self.meters, self.meters_per_second, self.delta_m
 
     def shutdown(self):
         # indicate that the thread should be stopped
