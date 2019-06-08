@@ -6,9 +6,12 @@ import time
 import math
 import pickle
 import serial
+import logging
+
 import numpy as np
-from donkeycar.utils import norm_deg, dist, deg2rad, arr_to_img
 from PIL import Image, ImageDraw
+
+from donkeycar.utils import norm_deg, dist, deg2rad, arr_to_img
 
 class RPLidar(object):
     '''
@@ -23,19 +26,32 @@ class RPLidar(object):
         self.lidar.clear_input()
         time.sleep(1)
         self.on = True
-        #print(self.lidar.get_info())
-        #print(self.lidar.get_health())
+        print(self.lidar.get_info())
+        print(self.lidar.get_health())
 
 
     def update(self):
+        while self.on:
+            for i, scan in enumerate(self.lidar.iter_scans()):
+                print('%d: Got %d measurments' % (i, len(scan)))
+                self.distances = [item[2] for item in scan]
+                self.angles = [item[1] for item in scan]
+                print(len(self.angles), "returns")
+                print(self.angles[:10])
+                print(self.distances[:10])
+        '''
         scans = self.lidar.iter_scans(550)
+        logging.info('lidar scan update started')
         while self.on:
             try:
+                logging.info('lidar scan update')
                 for scan in scans:
                     self.distances = [item[2] for item in scan]
                     self.angles = [item[1] for item in scan]
+                logging.info( "%d lidar returns" % (len(self.distances)))
             except serial.serialutil.SerialException:
-                print('serial.serialutil.SerialException from Lidar. common when shutting down.')
+                logging.error('serial.serialutil.SerialException from Lidar. common when shutting down.')
+        '''
 
     def run_threaded(self):
         return self.distances, self.angles

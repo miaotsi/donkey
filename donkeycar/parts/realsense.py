@@ -17,7 +17,7 @@ class RS_T265(object):
     is remarkably consistent.
     '''
 
-    def __init__(self, image_output=False):
+    def __init__(self, image_output=False, have_encoders=False):
         #Using the image_output will grab two image streams from the fisheye cameras but return only one.
         #This can be a bit much for USB2, but you can try it. Docs recommend USB3 connection for this.
         self.image_output = image_output
@@ -35,6 +35,14 @@ class RS_T265(object):
         # Start streaming with requested config
         self.pipe.start(cfg)
         self.running = True
+        self.encoder_vel = 0.0
+
+        if have_encoders:
+            profile = cfg.resolve()
+            dev = profile.get_device()
+            wheel_odom_sensor = dev.first(rs.wheel_odom_sensor)
+            json_cfg = {}
+            wheel_odom_sensor.load_wheel_odometery_config(json_cfg)
         
         zero_vec = (0.0, 0.0, 0.0)
         self.pos = zero_vec
@@ -70,12 +78,14 @@ class RS_T265(object):
         while self.running:
             self.poll()
 
-    def run_threaded(self):
+    def run_threaded(self, encoder_vel):
+        self.encoder_vel = encoder_vel
         return self.pos, self.vel, self.acc, self.img
 
-    def run(self):
+    def run(self, encoder_vel):
+        self.encoder_vel = encoder_vel
         self.poll()
-        return self.run_threaded()
+        return self.run_threaded(encoder_vel)
 
     def shutdown(self):
         self.running = False

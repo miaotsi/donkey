@@ -15,9 +15,14 @@ Options:
 import os
 import time
 import logging
+import json
+from subprocess import Popen
+import shlex
 
 from docopt import docopt
 import numpy as np
+import zmq
+
 
 import donkeycar as dk
 from donkeycar.parts.controller import LocalWebController, JoystickController
@@ -25,6 +30,59 @@ from donkeycar.parts.controller import PS3JoystickController, PS4JoystickControl
 from donkeycar.parts.actuator import PCA9685, PWMSteering, PWMThrottle
 from donkeycar.parts.path import Path, PathPlot, CTE, PID_Pilot, PlotCircle, PImage, OriginOffset
 from donkeycar.parts.transform import PIDController
+from donkeycar.parts.encoder import RotaryEncoder
+
+
+ODOM_PLUS_RS_T265 = False
+
+class T265Server():
+    def __init__(self, path, config, port=5555):
+        command = '%s --config %s --port=%d' % (path, config, port)
+        args =  shlex.split(command)
+        self.proc = Popen(args)        
+
+    def shutdown(self):
+        if self.proc is not None:
+            print("stopping tflite server")
+            self.proc.terminate()
+            self.proc = None
+
+    def run(self):
+        pass
+
+    def __del__(self):
+        self.shutdown()
+
+class OdomRemoteAdapter:
+    '''
+    send odom to t265 and get back pos stream
+    '''
+
+    def __init__(self, ip='localhost', port=5555):
+        self.ctx = zmq.Context()
+        self.socket = self.ctx.socket(zmq.REQ)
+        self.socket.connect("tcp://%s:%d" % (ip, port))
+        self.frame = 0
+        self.running = True
+        self.odom_vel_ms = 0.0
+        self.pos = (0, 0)
+
+    def update(self):
+        while self.running:
+            self.frame += 1
+            packet = '{"wheel_id" : 0 , "frame" : %d , "vel_x" : 0.0 , "vel_y" : 0.0 , "vel_z" : %f }' % ( self.frame, self.odom_vel_ms)
+            self.socket.send_string(packet)
+            message = self.socket.recv()
+            telem_obj = json.loads(message.decode('UTF-8'))
+            self.pos = (telem_obj['x'], telem_obj['z'])
+
+    def run_threaded(self, odom_vel_ms):
+        self.odom_vel_ms = odom_vel_ms
+        return self.pos[0], self.pos[1]
+
+    def shutdown(self):
+        self.running = False
+        time.sleep(1.0)
 
 
 def drive(cfg):
@@ -40,6 +98,10 @@ def drive(cfg):
     
     #Initialize car
     V = dk.vehicle.Vehicle()
+
+    PIN = 7 #36
+    enc = RotaryEncoder(mm_per_tick=22.16, pin=PIN, poll_delay=0.05, debug=False)
+    V.add(enc, outputs=['enc/dist_m', 'enc/vel_m_s'], threaded=True)
     
     cont_class = PS3JoystickController
 
@@ -57,6 +119,7 @@ def drive(cfg):
           outputs=['user/angle', 'user/throttle', 'user/mode', 'recording'],
           threaded=True)
 
+
     if cfg.DONKEY_GYM:
         from donkeycar.parts.dgym import DonkeyGymEnv 
         gym_env = DonkeyGymEnv(cfg.DONKEY_SIM_PATH, env_name=cfg.DONKEY_GYM_ENV_NAME)
@@ -64,23 +127,37 @@ def drive(cfg):
         inputs = ['angle', 'throttle']
         V.add(gym_env, inputs=inputs, outputs=['cam/image_array', 'rs/pos'], threaded=threaded)
 
+
         class PosStream:
             def run(self, pos):
                 #y is up, x is right, z is backwards/forwards
                 logging.debug("pos %s" % str(pos))
                 return pos[0], pos[2]
 
+        V.add(PosStream(), inputs=['rs/pos'], outputs=['pos/x', 'pos/y'])
+
+    elif ODOM_PLUS_RS_T265:
+        port = 5555
+
+        s = T265Server(path="/home/tkramer/projects/t265wOdom/build/t265odom",
+            config="/home/tkramer/projects/t265wOdom/wheel_config.json",
+            port=port)
+        V.add(s)
+
+        o = OdomRemoteAdapter(port=port)
+        V.add(o, inputs=['enc/vel_m_s'], outputs=['pos/x', 'pos/y'], threaded=True)
+
     else:
         from donkeycar.parts.realsense import RS_T265
         rs = RS_T265(image_output=False)
-        V.add(rs, outputs=['rs/pos', 'rs/vel', 'rs/acc' , 'rs/camera/left/img_array'], threaded=True)
+        V.add(rs, inputs=['enc/vel_m_s'], outputs=['rs/pos', 'rs/vel', 'rs/acc' , 'rs/camera/left/img_array'], threaded=True)
 
         class PosStream:
             def run(self, pos):
                 #y is up, x is right, z is backwards/forwards
                 return pos.x, pos.z
 
-    V.add(PosStream(), inputs=['rs/pos'], outputs=['pos/x', 'pos/y'])
+        V.add(PosStream(), inputs=['rs/pos'], outputs=['pos/x', 'pos/y'])
 
     origin_reset = OriginOffset()
     V.add(origin_reset, inputs=['pos/x', 'pos/y'], outputs=['pos/x', 'pos/y'] )
@@ -164,7 +241,8 @@ def drive(cfg):
         def run(self, mode, 
                     user_angle, user_throttle,
                     pilot_angle, pilot_throttle):
-            if mode == 'user': 
+            if mode == 'user':
+                #print(user_angle, user_throttle)
                 return user_angle, user_throttle
             
             elif mode == 'local_angle':
