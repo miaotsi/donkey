@@ -1,0 +1,6 @@
+19-08-18
+python ~/mycar/manage.py train --model ~/mycar/models/mypilot.h5
+
+After retrieving the data from JTN, I ran this code in (donkey)$home/mycar/data. It took about 30min. I got figure 1.  
+
+Figure 1. Train Result on 19-08-18 based on data from 19-08-12
